@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp-Editor", "Assembly-CSharp-Editor.csproj", "{0d55deb5-4500-fd39-366d-f89ded1faba0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{caa61437-622b-0635-6568-cc4fb9629cac}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnityApiUsageCollector.Runtime", "UnityApiUsageCollector.Runtime.csproj", "{41725b45-28f4-99b4-a033-c8a71fe0236d}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0d55deb5-4500-fd39-366d-f89ded1faba0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0d55deb5-4500-fd39-366d-f89ded1faba0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{caa61437-622b-0635-6568-cc4fb9629cac}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{caa61437-622b-0635-6568-cc4fb9629cac}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41725b45-28f4-99b4-a033-c8a71fe0236d}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41725b45-28f4-99b4-a033-c8a71fe0236d}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

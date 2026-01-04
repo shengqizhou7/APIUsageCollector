@@ -1,0 +1,123 @@
+using HarmonyLib;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
+
+static class ApiUsageHarmonyPatcher
+{
+    static Harmony harmony;
+    static bool patched;
+
+    public static void Patch()
+    {
+        if (patched) return;
+
+        harmony = new Harmony("unity.api.usage.collector");
+
+        int patchedCount = 0;
+        int typeCount = 0;
+        
+        var asm = Assembly.Load("Assembly-CSharp");
+        foreach (var type in asm.GetTypes())
+        {
+            if (!IsUserType(type)) continue;
+            typeCount++;
+
+            foreach (var method in type.GetMethods(
+                         BindingFlags.Instance | BindingFlags.Static |
+                         BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (!IsSafeMethod(method)) continue;
+
+                try
+                {
+                    harmony.Patch(
+                        method,
+                        transpiler: new HarmonyMethod(
+                            typeof(ApiUsageHarmonyPatcher),
+                            nameof(Transpiler)
+                        )
+                    );
+                    patchedCount++;
+                }
+                catch { /* 必须吞 */ }
+            }
+        }
+
+        UnityEngine.Debug.Log($"[API Collector] Patched {patchedCount} methods in {typeCount} user types.");
+        patched = true;
+    }
+
+    public static void Unpatch()
+    {
+        if (!patched) return;
+        harmony.UnpatchAll("unity.api.usage.collector");
+        patched = false;
+    }
+    
+    static IEnumerable<CodeInstruction> Transpiler(
+        IEnumerable<CodeInstruction> instructions)
+    {
+        var recordMethod = typeof(ApiUsageRecorder)
+            .GetMethod(nameof(ApiUsageRecorder.Record), 
+                BindingFlags.Public | BindingFlags.Static);
+
+        foreach (var ins in instructions)
+        {
+            // 先输出原指令
+            yield return ins;
+
+            // 如果是 UnityEngine API 调用，插入记录代码
+            if (ins.opcode == OpCodes.Call || ins.opcode == OpCodes.Callvirt)
+            {
+                if (ins.operand is MethodInfo mi &&
+                    mi.DeclaringType?.Namespace?.StartsWith("UnityEngine") == true)
+                {
+                    // 插入: ApiUsageRecorder.Record(mi.MethodHandle);
+                    yield return new CodeInstruction(OpCodes.Ldtoken, mi);
+                    yield return new CodeInstruction(OpCodes.Call, recordMethod);
+                }
+            }
+        }
+    }
+
+    // 判断是否是用户定义的类型
+    static bool IsUserType(Type type)
+    {
+        if (type == null) return false;
+        
+        // 排除编译器生成的类型
+        if (type.Name.Contains("<") || type.Name.Contains(">")) 
+            return false;
+        
+        // 排除特殊类型
+        if (type.IsSpecialName || type.IsInterface || type.IsEnum)
+            return false;
+            
+        return true;
+    }
+
+    // 判断方法是否可以安全地被 patch
+    static bool IsSafeMethod(MethodInfo method)
+    {
+        if (method == null) return false;
+        
+        // 排除抽象方法
+        if (method.IsAbstract) return false;
+        
+        // 排除泛型方法定义
+        if (method.IsGenericMethodDefinition) return false;
+        
+        // 排除编译器生成的方法
+        if (method.Name.Contains("<") || method.Name.Contains(">"))
+            return false;
+        
+        // 排除特殊方法（属性访问器等）
+        if (method.IsSpecialName) return false;
+        
+        return true;
+    }
+
+}
+
