@@ -41,7 +41,7 @@ static class ApiUsageHarmonyPatcher
                     );
                     patchedCount++;
                 }
-                catch { /* 必须吞 */ }
+                catch {}
             }
         }
 
@@ -56,12 +56,9 @@ static class ApiUsageHarmonyPatcher
         patched = false;
     }
     
-    static IEnumerable<CodeInstruction> Transpiler(
-        IEnumerable<CodeInstruction> instructions)
+    static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        var recordMethod = typeof(ApiUsageRecorder)
-            .GetMethod(nameof(ApiUsageRecorder.Record), 
-                BindingFlags.Public | BindingFlags.Static);
+        var recordMethod = typeof(ApiUsageRecorder).GetMethod(nameof(ApiUsageRecorder.Record), BindingFlags.Public | BindingFlags.Static);
 
         foreach (var ins in instructions)
         {

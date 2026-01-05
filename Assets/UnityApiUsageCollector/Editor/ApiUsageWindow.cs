@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class ApiUsageWindow : EditorWindow
 {
-    [MenuItem("Tools/Unity API Usage Collector")]
+    [MenuItem("Tools/API Usage Collector")]
     static void Open()
     {
         GetWindow<ApiUsageWindow>("Unity API Usage");
@@ -11,9 +11,15 @@ public class ApiUsageWindow : EditorWindow
 
     void OnGUI()
     {
-        GUILayout.Label("UnityEngine API Usage Collector", EditorStyles.boldLabel);
+        var titleStyle = new GUIStyle(EditorStyles.boldLabel)
+        {
+            fontSize = 16,
+            alignment = TextAnchor.MiddleLeft
+        };
         
-        EditorGUILayout.Space(5);
+        GUILayout.Label("UnityEngine API Usage Collector", titleStyle);
+        
+        EditorGUILayout.Space(10);
 
         var wasEnabled = ApiUsageInstaller.Enabled;
         ApiUsageInstaller.Enabled =
@@ -26,33 +32,38 @@ public class ApiUsageWindow : EditorWindow
 
         EditorGUILayout.Space(5);
         
-        // 显示收集的数据统计
         var count = ApiUsageRecorder.GetCollectedCount();
-        EditorGUILayout.HelpBox($"Collected: {count} unique API calls", MessageType.Info);
-
-        EditorGUILayout.Space(10);
-
-        if (GUILayout.Button("Export CSV to Desktop"))
-        {
-            ApiUsageRecorder.ExportCsv();
-        }
+        EditorGUILayout.BeginHorizontal();
         
-        EditorGUILayout.Space(5);
+        var helpBoxRect = EditorGUILayout.GetControlRect(GUILayout.ExpandWidth(true), GUILayout.Height(30));
+        EditorGUI.HelpBox(helpBoxRect, $"Collected: {count} unique API calls", MessageType.Info);
         
-        if (GUILayout.Button("Clear Data"))
+        GUILayout.Space(5);
+        
+        if (GUILayout.Button("Clear Data", GUILayout.Width(100), GUILayout.Height(30)))
         {
             ApiUsageRecorder.Reset();
             Debug.Log("[API Collector] Data cleared.");
         }
         
+        EditorGUILayout.EndHorizontal();
+        
+        EditorGUILayout.Space(5);
+        
+        if (GUILayout.Button("Export CSV to Desktop", GUILayout.Height(38)))
+        {
+            ApiUsageRecorder.ExportCsv();
+        }
+        
         EditorGUILayout.Space(10);
         
         EditorGUILayout.HelpBox(
+            "Steps:\n" + 
             "1. Enable Collection\n" +
             "2. Enter Play Mode\n" +
-            "3. Test your game\n" +
+            "3. Test your game (Clear collected data if necessary)\n" +
             "4. Exit Play Mode\n" +
-            "5. Export CSV", 
+            "5. Export CSV",
             MessageType.None);
     }
 }
