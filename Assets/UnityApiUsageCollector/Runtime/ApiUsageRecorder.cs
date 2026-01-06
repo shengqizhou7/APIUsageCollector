@@ -10,27 +10,58 @@ public static class ApiUsageRecorder
     static Dictionary<RuntimeMethodHandle, string> methodNames = new();
     [ThreadStatic] static bool inRecord;
 
-    public static void Record(RuntimeMethodHandle handle)
+    public static void Record(RuntimeMethodHandle methodHandle, RuntimeTypeHandle typeHandle)
     {
         if (inRecord) return;
         inRecord = true;
 
         try
         {
-            counts.TryGetValue(handle, out int c);
-            counts[handle] = c + 1;
+            counts.TryGetValue(methodHandle, out int c);
+            counts[methodHandle] = c + 1;
 
             // 缓存方法名
-            if (!methodNames.ContainsKey(handle))
+            if (!methodNames.ContainsKey(methodHandle))
             {
                 try
                 {
-                    var method = MethodBase.GetMethodFromHandle(handle);
-                    methodNames[handle] = $"{method.DeclaringType?.FullName}.{method.Name}";
+                    // 使用带类型句柄的重载，可以正确解析泛型方法
+                    var method = MethodBase.GetMethodFromHandle(methodHandle, typeHandle);
+                    
+                    if (method != null)
+                    {
+                        // 使用简洁的类型名称格式
+                        string typeName = FormatTypeName(method.DeclaringType);
+                        string fullName = $"{typeName}.{method.Name}";
+                        
+                        // 添加参数信息
+                        try
+                        {
+                            var parameters = method.GetParameters();
+                            if (parameters.Length > 0)
+                            {
+                                var paramStr = string.Join(", ", parameters.Select(p => FormatTypeName(p.ParameterType)));
+                                fullName += $"({paramStr})";
+                            }
+                            else
+                            {
+                                fullName += "()";
+                            }
+                        }
+                        catch { }
+                        
+                        methodNames[methodHandle] = fullName;
+                    }
+                    else
+                    {
+                        methodNames[methodHandle] = "Unknown (null method)";
+                        UnityEngine.Debug.LogWarning($"[API Collector] Failed to get method from handle: method is null");
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    methodNames[handle] = "Unknown";
+                    methodNames[methodHandle] = $"Unknown ({ex.GetType().Name})";
+                    UnityEngine.Debug.LogWarning($"[API Collector] Failed to resolve method: {ex.Message}");
                 }
             }
         }
@@ -74,5 +105,34 @@ public static class ApiUsageRecorder
         }
 
         UnityEngine.Debug.Log($"[API Collector] Exported {counts.Count} unique API calls to: {path}");
+    }
+
+    /// <summary>
+    /// 格式化类型名称，去除程序集信息，简化泛型显示
+    /// </summary>
+    static string FormatTypeName(Type type)
+    {
+        if (type == null) return "Unknown";
+        
+        // 处理泛型类型
+        if (type.IsGenericType)
+        {
+            // 获取不带 `1 后缀的类型名
+            var genericTypeName = type.Name;
+            int backtickIndex = genericTypeName.IndexOf('`');
+            if (backtickIndex > 0)
+            {
+                genericTypeName = genericTypeName.Substring(0, backtickIndex);
+            }
+            
+            // 获取泛型参数
+            var genericArgs = type.GetGenericArguments();
+            var argNames = string.Join(", ", genericArgs.Select(t => t.Name));
+            
+            return $"{type.Namespace}.{genericTypeName}<{argNames}>";
+        }
+        
+        // 普通类型
+        return type.FullName ?? type.Name;
     }
 }

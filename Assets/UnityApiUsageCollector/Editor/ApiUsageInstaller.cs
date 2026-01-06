@@ -22,25 +22,25 @@ public static class ApiUsageInstaller
     {
         if (!Enabled) return;
 
-        if (state == PlayModeStateChange.ExitingEditMode)
+        // RuntimeInitializeOnLoadMethod 会在 BeforeSceneLoad 时自动应用补丁
+        // 这里只需要处理退出和清理
+        
+        if (state == PlayModeStateChange.EnteredPlayMode)
         {
-            // 在进入Play模式之前，先清空数据
-            ApiUsageRecorder.Reset();
-            Debug.Log("[API Collector] Data reset, ready to collect.");
-        }
-        else if (state == PlayModeStateChange.EnteredPlayMode)
-        {
-            // 进入Play模式后立即应用补丁
-            ApiUsageHarmonyPatcher.Patch();
-            Debug.Log("[API Collector] Harmony patches applied.");
+            // RuntimeInitializeOnLoadMethod 已经应用了补丁
+            Debug.Log("[API Collector] Play mode entered, collecting data...");
         }
         else if (state == PlayModeStateChange.ExitingPlayMode)
         {
-            // 退出Play模式前，显示收集的数据统计
+            // 退出前显示统计，但保持 Patch 以便抓到 OnApplicationQuit
             var count = ApiUsageRecorder.GetCollectedCount();
             Debug.Log($"[API Collector] Collected {count} unique API calls. Ready to export.");
-            
+        }
+        else if (state == PlayModeStateChange.EnteredEditMode)
+        {
+            // 完全退出 Play 模式后再移除补丁
             ApiUsageHarmonyPatcher.Unpatch();
+            Debug.Log("[API Collector] Exited play mode, patches removed.");
         }
     }
 }

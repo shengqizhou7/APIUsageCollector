@@ -1,11 +1,20 @@
+#if UNITY_EDITOR
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+#endif
 
-static class ApiUsageHarmonyPatcher
+using UnityEngine;
+
+/// <summary>
+/// Harmony 补丁管理器
+/// 使用条件编译确保只在 Editor 模式下编译 Harmony 相关代码
+/// </summary>
+public static class ApiUsageHarmonyPatcher
 {
+#if UNITY_EDITOR
     static Harmony harmony;
     static bool patched;
 
@@ -45,7 +54,7 @@ static class ApiUsageHarmonyPatcher
             }
         }
 
-        UnityEngine.Debug.Log($"[API Collector] Patched {patchedCount} methods in {typeCount} user types.");
+        Debug.Log($"[API Collector] Patched {patchedCount} methods in {typeCount} user types.");
         patched = true;
     }
 
@@ -58,7 +67,21 @@ static class ApiUsageHarmonyPatcher
     
     static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        var recordMethod = typeof(ApiUsageRecorder).GetMethod(nameof(ApiUsageRecorder.Record), BindingFlags.Public | BindingFlags.Static);
+        // 获取 Record 方法，使用新的签名：Record(RuntimeMethodHandle, RuntimeTypeHandle)
+        var recordMethod = typeof(ApiUsageRecorder).GetMethod(
+            nameof(ApiUsageRecorder.Record), 
+            BindingFlags.Public | BindingFlags.Static,
+            null,
+            new[] { typeof(RuntimeMethodHandle), typeof(RuntimeTypeHandle) },
+            null);
+
+        if (recordMethod == null)
+        {
+            Debug.LogError("[API Collector] Failed to find Record method with correct signature (RuntimeMethodHandle, RuntimeTypeHandle)!");
+            foreach (var ins in instructions)
+                yield return ins;
+            yield break;
+        }
 
         foreach (var ins in instructions)
         {
@@ -71,8 +94,9 @@ static class ApiUsageHarmonyPatcher
                 if (ins.operand is MethodInfo mi &&
                     mi.DeclaringType?.Namespace?.StartsWith("UnityEngine") == true)
                 {
-                    // 插入: ApiUsageRecorder.Record(mi.MethodHandle);
+                    // 插入: ApiUsageRecorder.Record(mi.MethodHandle, mi.DeclaringType.TypeHandle);
                     yield return new CodeInstruction(OpCodes.Ldtoken, mi);
+                    yield return new CodeInstruction(OpCodes.Ldtoken, mi.DeclaringType);
                     yield return new CodeInstruction(OpCodes.Call, recordMethod);
                 }
             }
@@ -115,6 +139,16 @@ static class ApiUsageHarmonyPatcher
         
         return true;
     }
+#else
+    // 非 Editor 模式下提供空实现
+    public static void Patch()
+    {
+        Debug.LogWarning("[API Collector] Patch is only available in Unity Editor.");
+    }
 
+    public static void Unpatch()
+    {
+        Debug.LogWarning("[API Collector] Unpatch is only available in Unity Editor.");
+    }
+#endif
 }
-
