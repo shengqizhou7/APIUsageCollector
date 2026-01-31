@@ -6,68 +6,72 @@ using System.Reflection;
 
 public static class ApiUsageRecorder
 {
-    static Dictionary<RuntimeMethodHandle, int> counts = new();
-    static Dictionary<RuntimeMethodHandle, string> methodNames = new();
+    static Dictionary<RuntimeMethodHandle, int> counts = new Dictionary<RuntimeMethodHandle, int>();
+    static Dictionary<RuntimeMethodHandle, string> methodNames = new Dictionary<RuntimeMethodHandle, string>();
     [ThreadStatic] static bool inRecord;
+    private static readonly object lockObj = new object();
 
     public static void Record(RuntimeMethodHandle methodHandle, RuntimeTypeHandle typeHandle)
     {
-        if (inRecord) return;
-        inRecord = true;
-
-        try
+        lock (lockObj)
         {
-            counts.TryGetValue(methodHandle, out int c);
-            counts[methodHandle] = c + 1;
+            if (inRecord) return;
+            inRecord = true;
 
-            // 缓存方法名
-            if (!methodNames.ContainsKey(methodHandle))
+            try
             {
-                try
+                counts.TryGetValue(methodHandle, out int c);
+                counts[methodHandle] = c + 1;
+
+                // 缓存方法名
+                if (!methodNames.ContainsKey(methodHandle))
                 {
-                    // 使用带类型句柄的重载，可以正确解析泛型方法
-                    var method = MethodBase.GetMethodFromHandle(methodHandle, typeHandle);
-                    
-                    if (method != null)
+                    try
                     {
-                        // 使用简洁的类型名称格式
-                        string typeName = FormatTypeName(method.DeclaringType);
-                        string fullName = $"{typeName}.{method.Name}";
+                        // 使用带类型句柄的重载，可以正确解析泛型方法
+                        var method = MethodBase.GetMethodFromHandle(methodHandle, typeHandle);
                         
-                        // 添加参数信息
-                        try
+                        if (method != null)
                         {
-                            var parameters = method.GetParameters();
-                            if (parameters.Length > 0)
+                            // 使用简洁的类型名称格式
+                            string typeName = FormatTypeName(method.DeclaringType);
+                            string fullName = $"{typeName}.{method.Name}";
+                            
+                            // 添加参数信息
+                            try
                             {
-                                var paramStr = string.Join(", ", parameters.Select(p => FormatTypeName(p.ParameterType)));
-                                fullName += $"({paramStr})";
+                                var parameters = method.GetParameters();
+                                if (parameters.Length > 0)
+                                {
+                                    var paramStr = string.Join(", ", parameters.Select(p => FormatTypeName(p.ParameterType)));
+                                    fullName += $"({paramStr})";
+                                }
+                                else
+                                {
+                                    fullName += "()";
+                                }
                             }
-                            else
-                            {
-                                fullName += "()";
-                            }
+                            catch { }
+                            
+                            methodNames[methodHandle] = fullName;
                         }
-                        catch { }
-                        
-                        methodNames[methodHandle] = fullName;
+                        else
+                        {
+                            methodNames[methodHandle] = "Unknown (null method)";
+                            UnityEngine.Debug.LogWarning($"[API Collector] Failed to get method from handle: method is null");
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        methodNames[methodHandle] = "Unknown (null method)";
-                        UnityEngine.Debug.LogWarning($"[API Collector] Failed to get method from handle: method is null");
+                        methodNames[methodHandle] = $"Unknown ({ex.GetType().Name})";
+                        UnityEngine.Debug.LogWarning($"[API Collector] Failed to resolve method: {ex.Message}");
                     }
-                }
-                catch (Exception ex)
-                {
-                    methodNames[methodHandle] = $"Unknown ({ex.GetType().Name})";
-                    UnityEngine.Debug.LogWarning($"[API Collector] Failed to resolve method: {ex.Message}");
                 }
             }
-        }
-        finally
-        {
-            inRecord = false;
+            finally
+            {
+                inRecord = false;
+            }
         }
     }
 

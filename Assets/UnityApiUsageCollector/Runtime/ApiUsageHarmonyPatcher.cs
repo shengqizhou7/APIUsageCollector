@@ -31,6 +31,11 @@ public static class ApiUsageHarmonyPatcher
         foreach (var type in asm.GetTypes())
         {
             if (!IsUserType(type)) continue;
+            // 只 Patch 继承自 MonoBehaviour 的类型（大幅减少 Patch 数量和时间）
+            if (!typeof(UnityEngine.MonoBehaviour).IsAssignableFrom(type))
+            {
+                continue;
+            }
             typeCount++;
 
             foreach (var method in type.GetMethods(
@@ -136,6 +141,15 @@ public static class ApiUsageHarmonyPatcher
         
         // 排除特殊方法（属性访问器等）
         if (method.IsSpecialName) return false;
+
+        // 新增：排除异步方法
+        if (method.GetCustomAttribute(typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute)) != null)
+            return false;
+        
+        // 新增：排除迭代器方法
+        if (method.ReturnType == typeof(System.Collections.IEnumerator) || 
+            method.ReturnType == typeof(System.Collections.Generic.IEnumerator<>))
+            return false;
         
         return true;
     }
