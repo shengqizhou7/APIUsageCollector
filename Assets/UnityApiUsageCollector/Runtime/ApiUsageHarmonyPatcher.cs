@@ -2,6 +2,7 @@
 using HarmonyLib;
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Reflection;
 using System.Reflection.Emit;
 #endif
@@ -43,6 +44,7 @@ public static class ApiUsageHarmonyPatcher
                          BindingFlags.Public | BindingFlags.NonPublic))
             {
                 if (!IsSafeMethod(method)) continue;
+                if (!IsLifecycleMethod(method)) continue;
 
                 try
                 {
@@ -99,6 +101,9 @@ public static class ApiUsageHarmonyPatcher
                 if (ins.operand is MethodInfo mi &&
                     mi.DeclaringType?.Namespace?.StartsWith("UnityEngine") == true)
                 {
+                    if (IsBlacklistedUnityType(mi.DeclaringType))
+                        continue;
+
                     // 插入: ApiUsageRecorder.Record(mi.MethodHandle, mi.DeclaringType.TypeHandle);
                     yield return new CodeInstruction(OpCodes.Ldtoken, mi);
                     yield return new CodeInstruction(OpCodes.Ldtoken, mi.DeclaringType);
@@ -147,11 +152,63 @@ public static class ApiUsageHarmonyPatcher
             return false;
         
         // 新增：排除迭代器方法
-        if (method.ReturnType == typeof(System.Collections.IEnumerator) || 
-            method.ReturnType == typeof(System.Collections.Generic.IEnumerator<>))
+        if (method.ReturnType == typeof(System.Collections.IEnumerator))
             return false;
+
+        // 新增：排除包含异常处理表的方法（try-catch-finally）
+        try
+        {
+            var methodBody = method.GetMethodBody();
+            if (methodBody != null)
+            {
+                if (methodBody.ExceptionHandlingClauses.Count > 0)
+                    return false;
+                
+                if (methodBody.GetILAsByteArray()?.Length > 6000)
+                    return false;
+            }
+        }
+        catch
+        {
+            return false;
+        }
         
         return true;
+    }
+
+    // 只 Patch MonoBehaviour 生命周期方法
+    static bool IsLifecycleMethod(MethodInfo method)
+    {
+        if (method == null) return false;
+        switch (method.Name)
+        {
+            case "Awake":
+            case "OnEnable":
+            case "Start":
+            case "Update":
+            case "FixedUpdate":
+            case "LateUpdate":
+            case "OnDisable":
+            case "OnDestroy":
+            case "OnApplicationQuit":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    static bool IsBlacklistedUnityType(Type type)
+    {
+        if (type == null) return true;
+        if (type == typeof(UnityEngine.Transform)) return true;
+        if (type == typeof(UnityEngine.Time)) return true;
+        if (type == typeof(UnityEngine.Debug)) return true;
+        if (type == typeof(UnityEngine.Object)) return true;
+        if (type == typeof(UnityEngine.GameObject)) return true;
+        if (type == typeof(UnityEngine.Component)) return true;
+        if (type == typeof(UnityEngine.Camera)) return true;
+        if (type == typeof(UnityEngine.Screen)) return true;
+        return false;
     }
 #else
     // 非 Editor 模式下提供空实现

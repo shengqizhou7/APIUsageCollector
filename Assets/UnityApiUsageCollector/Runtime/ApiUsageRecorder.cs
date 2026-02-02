@@ -8,11 +8,19 @@ public static class ApiUsageRecorder
 {
     static Dictionary<RuntimeMethodHandle, int> counts = new Dictionary<RuntimeMethodHandle, int>();
     static Dictionary<RuntimeMethodHandle, string> methodNames = new Dictionary<RuntimeMethodHandle, string>();
+    static int recordCalls;
+    const int SampleRate = 10;
     [ThreadStatic] static bool inRecord;
     private static readonly object lockObj = new object();
 
     public static void Record(RuntimeMethodHandle methodHandle, RuntimeTypeHandle typeHandle)
     {
+        recordCalls++;
+        if (recordCalls % SampleRate != 0)
+        {
+            return;
+        }
+
         lock (lockObj)
         {
             if (inRecord) return;
@@ -79,6 +87,7 @@ public static class ApiUsageRecorder
     {
         counts.Clear();
         methodNames.Clear();
+        recordCalls = 0;
     }
 
     public static int GetCollectedCount()
